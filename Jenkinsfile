@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = "${env.BRANCH_NAME == 'main' ? 'nodemain:v1.0' : 'nodedev:v1.0'}"
+        HOST_PORT = "${env.BRANCH_NAME == 'main' ? '3000' : '3001'}"
+        CONTAINER_NAME = "${env.BRANCH_NAME}"
+    }
+
     stages {
 
         stage('Checkout') {
@@ -23,47 +29,21 @@ pipeline {
 
         stage('Build Docker image') {
             steps {
-                script {
-                    if (env.BRANCH_NAME == 'main') {
-                        sh 'docker build -t nodemain:v1.0 .'
-                    } else if (env.BRANCH_NAME == 'dev') {
-                        sh 'docker build -t nodedev:v1.0 .'
-                    }
-                }
+                sh 'docker build -t ${IMAGE_NAME} .'
             }
         }
 
         stage('Deploy') {
             steps {
-                script {
+                sh '''
+                docker stop ${CONTAINER_NAME} || true
+                docker rm ${CONTAINER_NAME} || true
 
-                    if (env.BRANCH_NAME == 'main') {
-
-                        sh '''
-                        docker stop main || true
-                        docker rm main || true
-
-                        docker run -d \
-                        --name main \
-                        --expose 3000 \
-                        -p 3000:3000 \
-                        nodemain:v1.0
-                        '''
-
-                    } else if (env.BRANCH_NAME == 'dev') {
-
-                        sh '''
-                        docker stop dev || true
-                        docker rm dev || true
-
-                        docker run -d \
-                        --name dev \
-                        --expose 3001 \
-                        -p 3001:3000 \
-                        nodedev:v1.0
-                        '''
-                    }
-                }
+                docker run -d \
+                  --name ${CONTAINER_NAME} \
+                  -p ${HOST_PORT}:3000 \
+                  ${IMAGE_NAME}
+                '''
             }
         }
     }
